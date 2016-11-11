@@ -12,6 +12,6 @@ public class CuratorAgent extends Agent {
 	@Override
 	protected void setup()
 	{
-		System.out.println("Setting up "+ AGENTTYPE + " " + getAID().getName());
+		System.out.println("Hi am up "+ AGENTTYPE + " " + getAID().getName());
 	}
 }
