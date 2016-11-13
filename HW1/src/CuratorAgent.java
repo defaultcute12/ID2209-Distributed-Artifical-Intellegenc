@@ -1,4 +1,3 @@
-import com.sun.xml.internal.bind.v2.model.core.ID;
 import jade.core.Agent;
 import jade.core.behaviours.*;
 import jade.domain.DFService;
@@ -11,7 +10,6 @@ import jade.lang.acl.MessageTemplate;
 import jade.lang.acl.UnreadableException;
 import jade.proto.SimpleAchieveREResponder;
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -88,8 +86,8 @@ public class CuratorAgent extends Agent {
     //Service to Tour Agent begins
     private class ServeTourAgentRequest extends SimpleAchieveREResponder{
 
-        public ServeTourAgentRequest(Agent a, MessageTemplate mt, Map<Long,Artifact> artifactCatalogue) {
-            super(a, mt, (DataStore) artifactCatalogue);
+        public ServeTourAgentRequest(Agent Curator, MessageTemplate templateForTourAgent, Map<Long,Artifact> artifactCatalogue) {
+            super(Curator, templateForTourAgent, (DataStore) artifactCatalogue);
         }
 
         @Override
@@ -98,46 +96,79 @@ public class CuratorAgent extends Agent {
 
             System.out.println("Hi Welcome !! I am serving Tour Agent at the moment with virtual tour");
             MessageTemplate templateForTourAgent = MessageTemplate.MatchContent("ARTIFACT_LIST_FOR_TOUR");
-            ACLMessage replyToTourAgent;
-            replyToTourAgent = null;
+            ACLMessage replyToTourAgent = myAgent.receive(templateForTourAgent);
             try {
-                ACLMessage receivedMsg = myAgent.receive(templateForTourAgent);
-                receivedMsg.addReceiver(getAID());
-                replyToTourAgent = receivedMsg.createReply();
-                replyToTourAgent.setLanguage("English");
-                replyToTourAgent.setPerformative(ACLMessage.INFORM);
+                MessageTemplate templateForProfiler = MessageTemplate.MatchContent("DETAIL_ARTIFACT_REQUIRED");
 
-                ArrayList<Long> myArtifactID = (ArrayList<Long>) replyToTourAgent.getContentObject();
-                ArrayList<Artifact> myArtifactReturned = (ArrayList<Artifact>) getArtifactList(myArtifactID);
 
-                replyToTourAgent.setContentObject(myArtifactReturned);
-
-                System.out.println(replyToTourAgent);
-            } catch (UnreadableException | IOException ue) {
+                if(replyToTourAgent != null){
+                    replyToTourAgent.addReceiver(getAID());
+                    replyToTourAgent.setLanguage("English");
+                    replyToTourAgent.setOntology("Replying Profiler");
+                    replyToTourAgent.setPerformative(ACLMessage.INFORM);
+                    ArrayList<Long> myArtifactID = (ArrayList<Long>) replyToTourAgent.getContentObject();
+                    String result = getArtifactList(myArtifactID);
+                    replyToTourAgent.setContent(result);
+                    send(replyToTourAgent);
+                }
+                else{
+                    block();
+                }
+            }catch(UnreadableException ue)
+            {
                 ue.printStackTrace();
             } // end of catch block
             return replyToTourAgent;
+
         }// end of prepareNotifactionResult method
 
         //Retreive data from Artifact Class
-        private ArrayList<Artifact> getArtifactList(ArrayList<Long> myArtifactID) {
-            ArrayList<Artifact> resultList = new ArrayList<>();
+        private String getArtifactList(ArrayList<Long> myArtifactID) {
+            String resultList = new String();
             for(Long i : myArtifactID){
                 Artifact myArtifact = artifactCatalogue.get(i);
             }
             return resultList;
-        }
+        }//end of data fetch method
     } // ServeTour Agent Ends
 
     //Service to profiler Agent begins
     private class ServeProfilerAgent extends CyclicBehaviour {
         @Override
         public void action() {
-            System.out.println("Hi Welcome !! I am serving Profiler Agent at the moment with detailed Artifact catalogue");
 
+            System.out.println("Hi Welcome !! I am serving Profiler Agent at the moment with detailed Artifact catalogue");
+            try {
+                MessageTemplate templateForProfiler = MessageTemplate.MatchContent("DETAIL_ARTIFACT_REQUIRED");
+                ACLMessage replyToProfilerAgent = myAgent.receive(templateForProfiler);
+
+                if(replyToProfilerAgent != null){
+                replyToProfilerAgent.addReceiver(getAID());
+                replyToProfilerAgent.setLanguage("English");
+                replyToProfilerAgent.setOntology("Replying Profiler");
+                replyToProfilerAgent.setPerformative(ACLMessage.INFORM);
+                ArrayList<Long> myArtifactID = (ArrayList<Long>) replyToProfilerAgent.getContentObject();
+                String result = getFullArtifactDetail(myArtifactID);
+                replyToProfilerAgent.setContent(result);
+                send(replyToProfilerAgent);
+                }
+                else{
+                    block();
+                }
+                }catch(UnreadableException ue)
+                {
+                 ue.printStackTrace();
+                }
 
         }// end of action for serving Profiler
-
+        private String getFullArtifactDetail (ArrayList < Long > myArtifactID)
+        {
+            String fullCatalogueDetail = new String();
+            for(Long i : myArtifactID){
+                Artifact myArtifact = artifactCatalogue.get(i);
+            }
+            return fullCatalogueDetail;
+        }
     }// Serve Profiler Agent ends
 
 
