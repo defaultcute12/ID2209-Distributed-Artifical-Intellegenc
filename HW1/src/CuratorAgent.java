@@ -1,12 +1,14 @@
 import jade.core.Agent;
-import jade.core.behaviours.Behaviour;
-import jade.core.behaviours.OneShotBehaviour;
-import jade.core.behaviours.ParallelBehaviour;
-import jade.core.behaviours.SequentialBehaviour;
+import jade.core.behaviours.*;
 import jade.domain.DFService;
 import jade.domain.FIPAAgentManagement.DFAgentDescription;
+import jade.domain.FIPAAgentManagement.FailureException;
+import jade.domain.FIPAAgentManagement.RefuseException;
 import jade.domain.FIPAAgentManagement.ServiceDescription;
 import jade.domain.FIPAException;
+import jade.lang.acl.ACLMessage;
+import jade.lang.acl.MessageTemplate;
+import jade.proto.SimpleAchieveREResponder;
 import java.util.Hashtable;
 
 /*
@@ -18,11 +20,13 @@ public class CuratorAgent extends Agent {
 	
 	public static final String AGENTTYPE = "Curator Agent";
 	private Hashtable artifactCatalogue;
+    private Hashtable artifactDetails;
 
 	@Override
 	protected void setup() {
         System.out.println("Hi am up " + AGENTTYPE + " " + getAID().getName());
         artifactCatalogue = new Hashtable();
+        artifactDetails = new Hashtable();
 
         //Register my service
         DFAgentDescription dfad = new DFAgentDescription();
@@ -41,20 +45,27 @@ public class CuratorAgent extends Agent {
         SequentialBehaviour sb = new SequentialBehaviour();
         ParallelBehaviour pb = new ParallelBehaviour();
 
-        //update artifact catalogue in one shot
+        //update artifact catalogue in one shot for Tour agent
         sb.addSubBehaviour(new OneShotBehaviour() {
             @Override
             public void action() {
-                updateArtifactCatalogue("Flowers",1);
-                updateArtifactCatalogue("Nature",2);
-                updateArtifactCatalogue("Mummy",3);
-                System.out.println(artifactCatalogue);
+            System.out.println(artifactCatalogue);
             }
         });
-        //Serve Tour Agent Request
+
+        //update artifact catalogue in one shot for Profiler agent
+        sb.addSubBehaviour(new OneShotBehaviour() {
+            @Override
+            public void action() {
+              System.out.println("Deatils are : "+artifactCatalogue +artifactDetails);
+            }
+        });
+
+        //Serve Tour Agent Request Parallels
+        MessageTemplate tourAgentRequest = null;
         pb.addSubBehaviour(new ServeTourAgentRequest());
 
-        //Serve Profiler agent request
+        //Serve Profiler agent request Parallels
         pb.addSubBehaviour(new ServeProfilerAgent());
 
         addBehaviour(sb);
@@ -62,37 +73,51 @@ public class CuratorAgent extends Agent {
 
     }//end of set up
 
+    //update artifact details
+    public Hashtable detailedList(String creationPlace, int date) {
+        artifactDetails.put(creationPlace,date);
+        detailedList("egypt",1991-01-11);
+        detailedList("india",1990-01-11);
+        detailedList("stockholm",1995-01-11);
+        return artifactDetails;
+    }
 
 
     //update artifact catalogue list
-    public void updateArtifactCatalogue(final String artifactName, final int artifactId) {
+
+    public Hashtable  listCatalogue(final String artifactName, final int artifactId) {
         artifactCatalogue.put(artifactName, artifactId);
+        listCatalogue("Flowers",1);
+        listCatalogue("Nature",2);
+        listCatalogue("Mummy",3);
+        return artifactCatalogue;
     }
 
     //Service to Tour Agent begins
-    private class ServeTourAgentRequest extends Behaviour {
+    private class ServeTourAgentRequest extends CyclicBehaviour {
+
         @Override
         public void action() {
 
-        }
-
-        @Override
-        public boolean done() {
-            return false;
         }
     } // ServeTour Agent Ends
 
     //Service to profiler Agent begins
-    private class ServeProfilerAgent extends Behaviour {
+    private class ServeProfilerAgent extends CyclicBehaviour {
         @Override
         public void action() {
-
+            MessageTemplate tmpProfilerAgent = MessageTemplate.MatchPerformative(ACLMessage.CFP);
+            ACLMessage acm = myAgent.receive(tmpProfilerAgent);
+            if (acm != null)
+            {
+                System.out.println("I got message from TourAgent.. Processing ....");
+            }
+            else{
+                System.out.println("Got no message");
+                block();
+            }
         }
 
-        @Override
-        public boolean done() {
-            return false;
-        }
     }// Serve Profiler Agent ends
 
     //agent terminating
