@@ -5,14 +5,16 @@ import jade.domain.FIPAAgentManagement.DFAgentDescription;
 import jade.domain.FIPAAgentManagement.FailureException;
 import jade.domain.FIPAAgentManagement.ServiceDescription;
 import jade.domain.FIPAException;
+import jade.lang.acl.ACLCodec;
 import jade.lang.acl.ACLMessage;
 import jade.lang.acl.MessageTemplate;
 import jade.lang.acl.UnreadableException;
 import jade.proto.SimpleAchieveREResponder;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.io.Serializable;
+import java.security.acl.Acl;
+import java.text.DateFormat;
+import java.util.*;
 
 /*
  * Curator Agent monitors the gallery/museum.
@@ -44,7 +46,7 @@ public class CuratorAgent extends Agent {
             fe.printStackTrace();
         }
 
-        //  respond to tour agent for build tour-----
+        //behaving to server Tour Agent and Profiler Agent
         SequentialBehaviour sb = new SequentialBehaviour();
         ParallelBehaviour pb = new ParallelBehaviour();
 
@@ -56,8 +58,8 @@ public class CuratorAgent extends Agent {
                 artifactCatalogue = new HashMap<>();
                 for(int j=0;j<5;j++)
                 {
-                    Artifact detailedArtList = new Artifact(j,"FamousFloral","1992/01/12","Delhi","Flowers");
-                    artifactCatalogue.put((long) detailedArtList.getID(),detailedArtList);
+                    Artifact detailedArtList = new Artifact(j,"FamousFloral", new Date(),"Delhi","Flowers");
+                    artifactCatalogue.put((long) detailedArtList.ID,detailedArtList);
                 }
                 System.out.println(artifactCatalogue);
             }
@@ -91,84 +93,82 @@ public class CuratorAgent extends Agent {
         }
 
         @Override
+        protected ACLMessage prepareResponse(ACLMessage templateForTourAgent)
+        {
+            ACLMessage response = templateForTourAgent.createReply();
+            return response;
+        }
+
+        @Override
         protected  ACLMessage prepareResultNotification
                 (ACLMessage request, ACLMessage response) throws FailureException {
 
             System.out.println("Hi Welcome !! I am serving Tour Agent at the moment with virtual tour");
             MessageTemplate templateForTourAgent = MessageTemplate.MatchContent("ARTIFACT_LIST_FOR_TOUR");
             ACLMessage replyToTourAgent = myAgent.receive(templateForTourAgent);
-            try {
-                MessageTemplate templateForProfiler = MessageTemplate.MatchContent("DETAIL_ARTIFACT_REQUIRED");
-
+            ACLMessage reply = null;
 
                 if(replyToTourAgent != null){
-                    replyToTourAgent.addReceiver(getAID());
-                    replyToTourAgent.setLanguage("English");
-                    replyToTourAgent.setOntology("Replying Profiler");
-                    replyToTourAgent.setPerformative(ACLMessage.INFORM);
-                    ArrayList<Long> myArtifactID = (ArrayList<Long>) replyToTourAgent.getContentObject();
-                    String result = getArtifactList(myArtifactID);
-                    replyToTourAgent.setContent(result);
-                    send(replyToTourAgent);
+                    reply = replyToTourAgent.createReply();
+                    reply.setPerformative(ACLMessage.INFORM);
+                    List<Artifact> list = new ArrayList<Artifact>(artifactCatalogue.values());
+                    try {
+                        reply.setContentObject((Serializable )list);
+                        send(reply);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        System.err.println("Curator failed to cast");
+                    }
                 }
+
                 else{
                     block();
                 }
-            }catch(UnreadableException ue)
-            {
-                ue.printStackTrace();
-            } // end of catch block
-            return replyToTourAgent;
+            return reply;
 
         }// end of prepareNotifactionResult method
 
         //Retreive data from Artifact Class
-        private String getArtifactList(ArrayList<Long> myArtifactID) {
-            String resultList = new String();
-            for(Long i : myArtifactID){
-                Artifact myArtifact = artifactCatalogue.get(i);
-            }
-            return resultList;
-        }//end of data fetch method
+        //if i have finished the behaviour am done
+        @Override
+        public boolean done()
+        {
+            return false;
+        }
     } // ServeTour Agent Ends
 
     //Service to profiler Agent begins
     private class ServeProfilerAgent extends CyclicBehaviour {
         @Override
         public void action() {
+            MessageTemplate templateForProfiler = MessageTemplate.MatchContent("DETAIL_ARTIFACT_REQUIRED");
+            ACLMessage replyToProfilerAgent = myAgent.receive(templateForProfiler);
 
             System.out.println("Hi Welcome !! I am serving Profiler Agent at the moment with detailed Artifact catalogue");
             try {
-                MessageTemplate templateForProfiler = MessageTemplate.MatchContent("DETAIL_ARTIFACT_REQUIRED");
-                ACLMessage replyToProfilerAgent = myAgent.receive(templateForProfiler);
-
                 if(replyToProfilerAgent != null){
-                replyToProfilerAgent.addReceiver(getAID());
-                replyToProfilerAgent.setLanguage("English");
-                replyToProfilerAgent.setOntology("Replying Profiler");
-                replyToProfilerAgent.setPerformative(ACLMessage.INFORM);
-                ArrayList<Long> myArtifactID = (ArrayList<Long>) replyToProfilerAgent.getContentObject();
-                String result = getFullArtifactDetail(myArtifactID);
-                replyToProfilerAgent.setContent(result);
-                send(replyToProfilerAgent);
+                ACLMessage reply =  replyToProfilerAgent.createReply();
+                    reply.setPerformative(ACLMessage.INFORM);
+                    int artifactID = (int)replyToProfilerAgent.getContentObject();
+                    Artifact replyArtifact = artifactCatalogue.get(artifactID);
+                    if(replyArtifact == null)
+                    {
+                        reply.setPerformative(ACLMessage.FAILURE);
+                    }
+                    else{
+                        reply.setContentObject(replyArtifact);
+                    }
+                    send(reply);
                 }
                 else{
                     block();
                 }
-                }catch(UnreadableException ue)
+                }catch(UnreadableException | IOException ue)
                 {
                  ue.printStackTrace();
                 }
 
         }// end of action for serving Profiler
-        private String getFullArtifactDetail (ArrayList < Long > myArtifactID)
-        {
-            String fullCatalogueDetail = new String();
-            for(Long i : myArtifactID){
-                Artifact myArtifact = artifactCatalogue.get(i);
-            }
-            return fullCatalogueDetail;
-        }
     }// Serve Profiler Agent ends
 
 
