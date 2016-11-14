@@ -10,6 +10,7 @@ import jade.lang.acl.ACLMessage;
 import jade.lang.acl.MessageTemplate;
 import jade.lang.acl.UnreadableException;
 import jade.proto.SimpleAchieveREResponder;
+
 import java.io.IOException;
 import java.io.Serializable;
 import java.security.acl.Acl;
@@ -24,28 +25,36 @@ import java.util.*;
 
 public class CuratorAgent extends Agent {
 	
+	public static final String REQUESTONE = "DETAIL_ARTIFACT_REQUIRED";
+	public static final String REQUESTALL = "ARTIFACT_LIST_FOR_TOUR";
+	public static final String SERVICETYPE = "InquiryService";
+	public static final String SERVICENAME = "Curator";
 	public static final String AGENTTYPE = "Curator Agent";
-	private HashMap<Long,Artifact> artifactCatalogue;
+	private HashMap<Integer,Artifact> artifactCatalogue;
 
 
 	@Override
 	protected void setup() {
         //Curator Agent Started
         System.out.println("Hi am up " + AGENTTYPE + " " + getAID().getName());
-
-        //Register my service
-        DFAgentDescription dfad = new DFAgentDescription();
-        dfad.setName(getAID());
-        ServiceDescription sd = new ServiceDescription();
-        sd.setType("ARTIFACT-INFORMATION");
-        sd.setName("MUSEUM-ARTIFACT-CATALOGUE");
-        dfad.addServices(sd);
-        try{
-            DFService.register(this,dfad);
-        } catch(FIPAException fe){
-            fe.printStackTrace();
-        }
-
+        
+        // ---------
+		DFAgentDescription agentDescription = new DFAgentDescription();
+		ServiceDescription serviceDescription = new ServiceDescription();
+		
+		agentDescription.setName(getAID());						// set Agent name
+		serviceDescription.setName(SERVICENAME);				// set Service name
+		serviceDescription.setType(SERVICETYPE);				// set Service type
+		
+		agentDescription.addServices(serviceDescription);		// Add the Service to the Agent
+		
+		try {
+			DFService.register(this, agentDescription);
+		} catch (FIPAException e)
+		{
+			System.err.println(AGENTTYPE + " failed to register with DF");
+		}
+		
         //behaving to server Tour Agent and Profiler Agent
         SequentialBehaviour sb = new SequentialBehaviour();
         ParallelBehaviour pb = new ParallelBehaviour();
@@ -55,22 +64,22 @@ public class CuratorAgent extends Agent {
             @Override
             public void action() {
                 //initializing artifact list
-                artifactCatalogue = new HashMap<>();
+                artifactCatalogue = new HashMap<Integer,Artifact>();
                 for(int j=0;j<5;j++)
                 {
-                    Artifact detailedArtList = new Artifact(j,"FamousFloral", new Date(),"Delhi","Flowers");
-                    artifactCatalogue.put((long) detailedArtList.ID,detailedArtList);
+                    Artifact detailedArtList = new Artifact(j,"FamousFloral", new Date(),"Delhi","flowers");
+                    artifactCatalogue.put(detailedArtList.ID,detailedArtList);
                 }
-                System.out.println(artifactCatalogue);
+                //System.out.println(artifactCatalogue);
             }
         });
 
         //Templates for messages coming from Profiler Agent and Curator Agent
-        MessageTemplate templateForProfiler = MessageTemplate.MatchContent("DETAIL_ARTIFACT_REQUIRED");
-        MessageTemplate templateForTourAgent = MessageTemplate.MatchContent("ARTIFACT_LIST_FOR_TOUR");
+        MessageTemplate templateForProfiler = MessageTemplate.MatchContent(REQUESTONE);
+        MessageTemplate templateForTourAgent = MessageTemplate.MatchContent(REQUESTALL);
 
         //Serve Tour Agent Request Parallels
-        pb.addSubBehaviour(new ServeTourAgentRequest(this,templateForTourAgent,artifactCatalogue));
+        pb.addSubBehaviour(new ServeTourAgentRequest(this, templateForTourAgent));
 
         //Serve Profiler agent request Parallels
         pb.addSubBehaviour(new ServeProfilerAgent());
@@ -80,7 +89,7 @@ public class CuratorAgent extends Agent {
 
         //adding both behaviours to agent
         addBehaviour(sb);
-        addBehaviour(pb);
+        //addBehaviour(pb);
 
     }//end of set up
 
@@ -88,28 +97,20 @@ public class CuratorAgent extends Agent {
     //Service to Tour Agent begins
     private class ServeTourAgentRequest extends SimpleAchieveREResponder{
 
-        public ServeTourAgentRequest(Agent Curator, MessageTemplate templateForTourAgent, Map<Long,Artifact> artifactCatalogue) {
-            super(Curator, templateForTourAgent, (DataStore) artifactCatalogue);
+        public ServeTourAgentRequest(Agent Curator, MessageTemplate templateForTourAgent) {
+            super(Curator, templateForTourAgent);
         }
 
         @Override
-        protected ACLMessage prepareResponse(ACLMessage templateForTourAgent)
+        protected ACLMessage prepareResponse(ACLMessage request)
         {
-            ACLMessage response = templateForTourAgent.createReply();
-            return response;
-        }
-
-        @Override
-        protected  ACLMessage prepareResultNotification
-                (ACLMessage request, ACLMessage response) throws FailureException {
-
             System.out.println("Hi Welcome !! I am serving Tour Agent at the moment with virtual tour");
-            MessageTemplate templateForTourAgent = MessageTemplate.MatchContent("ARTIFACT_LIST_FOR_TOUR");
-            ACLMessage replyToTourAgent = myAgent.receive(templateForTourAgent);
             ACLMessage reply = null;
 
-                if(replyToTourAgent != null){
-                    reply = replyToTourAgent.createReply();
+                if(request != null)
+                {
+                	System.out.println("Curator received a non-null msg from TourGuide");
+                    reply = request.createReply();
                     reply.setPerformative(ACLMessage.INFORM);
                     List<Artifact> list = new ArrayList<Artifact>(artifactCatalogue.values());
                     try {
@@ -125,8 +126,7 @@ public class CuratorAgent extends Agent {
                     block();
                 }
             return reply;
-
-        }// end of prepareNotifactionResult method
+        }
 
         //Retreive data from Artifact Class
         //if i have finished the behaviour am done
@@ -141,18 +141,22 @@ public class CuratorAgent extends Agent {
     private class ServeProfilerAgent extends CyclicBehaviour {
         @Override
         public void action() {
-            MessageTemplate templateForProfiler = MessageTemplate.MatchContent("DETAIL_ARTIFACT_REQUIRED");
-            ACLMessage replyToProfilerAgent = myAgent.receive(templateForProfiler);
+            MessageTemplate templateForProfiler = MessageTemplate.MatchPerformative(ACLMessage.QUERY_REF);
+            ACLMessage request = myAgent.receive(templateForProfiler);
 
-            System.out.println("Hi Welcome !! I am serving Profiler Agent at the moment with detailed Artifact catalogue");
+            System.out.println("Hi Welcome !! Curator serving Profiler Agent at the moment with detailed Artifact catalogue");
             try {
-                if(replyToProfilerAgent != null){
-                ACLMessage reply =  replyToProfilerAgent.createReply();
+                if(request != null)
+                {
+                	System.out.println(AGENTTYPE + " got non-null request");
+                	ACLMessage reply =  request.createReply();
                     reply.setPerformative(ACLMessage.INFORM);
-                    int artifactID = (int)replyToProfilerAgent.getContentObject();
+                    Integer artifactID = (Integer)request.getContentObject();
+                    System.out.println(AGENTTYPE + " got int " + artifactID);
                     Artifact replyArtifact = artifactCatalogue.get(artifactID);
                     if(replyArtifact == null)
                     {
+                    	System.err.println(AGENTTYPE + " could not find that artifact");
                         reply.setPerformative(ACLMessage.FAILURE);
                     }
                     else{
