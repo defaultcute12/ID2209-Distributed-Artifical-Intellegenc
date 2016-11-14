@@ -1,7 +1,8 @@
+import java.io.Serializable;
 import java.util.LinkedList;
 
 
-public class Profile
+public class Profile implements Serializable
 {
 	public static final boolean MALE = true;
 	public static final boolean FEMALE = false;

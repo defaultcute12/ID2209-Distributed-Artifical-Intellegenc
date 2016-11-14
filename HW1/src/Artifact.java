@@ -1,9 +1,10 @@
+import java.io.Serializable;
 import java.util.Date;
 
 /*
  * id, name, creator, date of creation, place of creation, genre etc
  */
-public class Artifact
+public class Artifact implements Serializable
 {
 	public final int ID;
 	public final String name;
