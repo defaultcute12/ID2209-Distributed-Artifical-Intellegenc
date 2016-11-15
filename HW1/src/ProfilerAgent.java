@@ -165,7 +165,9 @@ public class ProfilerAgent extends Agent {
 							System.out.println(AGENTTYPE + " got answer from curator");
 							
 							Artifact artInfo = (Artifact)curatorMsg.getContentObject();
-							System.out.println("First object on tour is:" + artInfo.name + " with ID " + artInfo.ID);
+							System.out.println("First object on tour is:" 
+							+ artInfo.name + ", ID: " + artInfo.ID + ", CreationPlace: " + artInfo.creationPlace + 
+							", CreationDate: " + artInfo.creationDate + ", Genre: " + artInfo.genre);
 						
 						// ------
 					
