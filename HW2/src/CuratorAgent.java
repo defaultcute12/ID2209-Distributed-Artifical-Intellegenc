@@ -18,8 +18,9 @@ public class CuratorAgent extends Agent {
 	public static final String SERVICETYPE = "BiddingService";
 	public static final String SERVICENAME = "CuratorBidder";
 	
-	private int maxPrice = 100;
 	private AuctionItem item;
+	private int maxPrice = 50;
+
 	
 	public CuratorAgent() { }
 	
@@ -106,7 +107,7 @@ public class CuratorAgent extends Agent {
 					}
 				}
 				break;
-			case 1:		// call for proposals
+			case 1:		// call for proposals or auction termination
 				ACLMessage cfpMsg = myAgent.receive(MessageTemplate.MatchPerformative(ACLMessage.CFP));
 				switch (cfpMsg.getPerformative())
 				{
@@ -117,7 +118,7 @@ public class CuratorAgent extends Agent {
 				case ACLMessage.CANCEL:
 					System.err.println(AGENTTYPE + " " + getAID().getName() + " got notification of auction ending");
 					item = null;
-					step = 0;		// Wait for new auction to begin
+					step = 0;		// Go back waiting for new auction to begin
 				}
 				break;
 			case 2:		// status of sent proposal
