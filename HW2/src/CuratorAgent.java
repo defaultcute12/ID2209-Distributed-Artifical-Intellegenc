@@ -14,7 +14,7 @@ import jade.lang.acl.UnreadableException;
 @SuppressWarnings("serial")
 public class CuratorAgent extends Agent {
 	
-	public static final String AGENTTYPE = "Curator Agent";
+	public static final String AGENTTYPE = "CuratorAgent";
 	public static final String SERVICETYPE = "BiddingService";
 	public static final String SERVICENAME = "CuratorBidder";
 	
@@ -33,7 +33,7 @@ public class CuratorAgent extends Agent {
 	@Override
 	protected void setup()
 	{
-        System.out.println(AGENTTYPE + " " + getAID().getName() + " is created");
+        System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " is created");
         addBehaviours();
 	}
 	
@@ -62,7 +62,7 @@ public class CuratorAgent extends Agent {
 				}
 				catch (FIPAException e)
 				{
-					System.err.println(AGENTTYPE + " " + getAID().getName() + " failed to register with DF");
+					System.err.println(AGENTTYPE + " " + getAID().getLocalName() + " failed to register with DF");
 				}
 			}
 		});
@@ -71,7 +71,7 @@ public class CuratorAgent extends Agent {
 	private ACLMessage getProposal(ACLMessage cfp)
 	{
 		ACLMessage proposal = cfp.createReply();
-		cfp.setPerformative(ACLMessage.PROPOSE);
+		proposal.setPerformative(ACLMessage.PROPOSE);
 		int biddingPrice = Integer.parseInt(cfp.getContent());
 		
 		if (item.type == AuctionItem.PAINTING && biddingPrice <= maxPrice) proposal.setContent(""+biddingPrice);
@@ -91,47 +91,66 @@ public class CuratorAgent extends Agent {
 			switch (step)
 			{
 			case 0:		// inform of new auction
-				ACLMessage newAuctionMsg = myAgent.receive(MessageTemplate.MatchPerformative(ACLMessage.INFORM));
-				System.out.println(AGENTTYPE + " " + getAID().getName() + " got notification of new auction");
+				ACLMessage newAuctionMsg = myAgent.blockingReceive(MessageTemplate.MatchPerformative(ACLMessage.INFORM));
+				System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got notification of new auction");
 				
 				if (newAuctionMsg != null)
 				{
 					try {
 						item = (AuctionItem)newAuctionMsg.getContentObject();
-						step++;
 					}
 					catch (UnreadableException e)
 					{
-						System.err.println(AGENTTYPE + " " + getAID().getName() + " failed casting received msg");
+						System.err.println(AGENTTYPE + " " + getAID().getLocalName() + " failed casting received msg");
 						step = END;
 					}
 				}
+				else {
+					System.err.println(AGENTTYPE + " " + getAID().getLocalName() + " got empty msg");
+				}
+				step++;
 				break;
 			case 1:		// call for proposals or auction termination
-				ACLMessage cfpMsg = myAgent.receive(MessageTemplate.MatchPerformative(ACLMessage.CFP));
-				switch (cfpMsg.getPerformative())
+				ACLMessage cfpMsg = myAgent.blockingReceive();
+				if (cfpMsg != null)
 				{
-				case ACLMessage.CFP:
-					ACLMessage proposalMsg = getProposal(cfpMsg);
-					send(proposalMsg);
-					step++;
-				case ACLMessage.CANCEL:
-					System.err.println(AGENTTYPE + " " + getAID().getName() + " got notification of auction ending");
-					item = null;
-					step = 0;		// Go back waiting for new auction to begin
+					switch (cfpMsg.getPerformative())
+					{
+					case ACLMessage.CFP:
+						System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got cfp");
+						ACLMessage proposalMsg = getProposal(cfpMsg);
+						System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now send proposal");
+						send(proposalMsg);
+						step++;
+						break;
+					case ACLMessage.CANCEL:
+						System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got notification of auction end");
+						item = null;
+						step = 0;		// Go back waiting for new auction to begin
+						break;
+					}
+				}
+				else {
+					System.err.println(AGENTTYPE + " " + getAID().getLocalName() + " got empty msg (2)");
 				}
 				break;
 			case 2:		// status of sent proposal
-				ACLMessage statusMsg = myAgent.receive();
-				if (statusMsg.getPerformative() == ACLMessage.ACCEPT_PROPOSAL)
+				System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " waiting for proposal reply");
+				ACLMessage statusMsg = myAgent.blockingReceive();
+				if (statusMsg != null)
 				{
-					System.out.println(AGENTTYPE + " " + getAID().getName() + " won auction item " + item.name);
+					System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got proposal reply");
+
+					if (statusMsg.getPerformative() == ACLMessage.ACCEPT_PROPOSAL)
+					{
+						System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " won auction of " + item.name + "!");
+					}
+					else if (statusMsg.getPerformative() == ACLMessage.REJECT_PROPOSAL)
+					{
+						//System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " lost auction item " + item.name);
+					}
 				}
-				else if (statusMsg.getPerformative() == ACLMessage.REJECT_PROPOSAL)
-				{
-					System.out.println(AGENTTYPE + " " + getAID().getName() + " lost auction item " + item.name);
-				}
-				step++;
+				step--;
 				break;
 			}
 		}

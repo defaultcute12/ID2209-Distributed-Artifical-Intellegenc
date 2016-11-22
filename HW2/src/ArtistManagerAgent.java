@@ -1,5 +1,5 @@
-import java.io.IOException;
 
+import java.io.IOException;
 import jade.core.Agent;
 import jade.core.behaviours.Behaviour;
 import jade.domain.DFService;
@@ -12,7 +12,7 @@ import jade.lang.acl.MessageTemplate;
 @SuppressWarnings("serial")
 public class ArtistManagerAgent extends Agent {
 	
-	public static final String AGENTTYPE = "Artist Manager Agent";
+	public static final String AGENTTYPE = "ArtistManagerAgent";
 	
 	private AuctionItem auctionItem;
 	private int askingPrice;
@@ -21,13 +21,14 @@ public class ArtistManagerAgent extends Agent {
 	protected void setup()
 	{
 		try {
-			Thread.sleep(1000);
+			Thread.sleep(5000);
 		} catch (InterruptedException e) { }
-		
-        System.out.println(AGENTTYPE + " " + getAID().getName() + " is created");
-        
+		        
         auctionItem = new AuctionItem(1, "Mona Lisa", AuctionItem.PAINTING);
         askingPrice = 100;
+        
+        System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " created; will auction \"" +
+        					auctionItem.name + "\" starting at " + askingPrice);
         
         addBehaviour(new stepBehaviour());
 	}
@@ -58,7 +59,7 @@ public class ArtistManagerAgent extends Agent {
 				{
 					bidders = DFService.search(myAgent, agentDescription);
 					
-					System.out.println(AGENTTYPE + " " + getAID().getName() + " found " + bidders.length + " curators");
+					System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " found " + bidders.length + " curators");
 					
 					ACLMessage auctionStartMsg = new ACLMessage(ACLMessage.INFORM);
 					auctionStartMsg.setContentObject(auctionItem);
@@ -66,7 +67,7 @@ public class ArtistManagerAgent extends Agent {
 					// Add all Curators as receivers
 					for (int i = 0; i < bidders.length; i++) auctionStartMsg.addReceiver(bidders[i].getName());
 					
-					System.out.println(AGENTTYPE + " " + getAID().getName() + " will now inform start of auction");
+					System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now inform start of auction");
 					send(auctionStartMsg);
 					step++;
 				}
@@ -91,7 +92,7 @@ public class ArtistManagerAgent extends Agent {
 				
 				for (int i = 0; i < bidders.length; ++i) cfpMsg.addReceiver(bidders[i].getName());
 				
-				System.out.println(AGENTTYPE + " " + getAID().getName() + " will now cfp");
+				System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now cfp");
 				send(cfpMsg);
 				
 				mt = MessageTemplate.and(MessageTemplate.MatchConversationId(""+auctionItem.ID),
@@ -102,17 +103,19 @@ public class ArtistManagerAgent extends Agent {
 				step++;
 				break;
 			case 2:		// receive proposals
-				ACLMessage proposalMsg = myAgent.receive(mt);
+				ACLMessage proposalMsg = myAgent.blockingReceive(mt);
 				if (proposalMsg != null)
 				{
+					System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got msg from " +
+												proposalMsg.getSender().getLocalName() + ": " + proposalMsg.getContent());
 					receivedProposals++;
 					switch (proposalMsg.getPerformative())
 					{
 					case ACLMessage.PROPOSE:
 						if (Integer.parseInt(proposalMsg.getContent()) == askingPrice && !isAccepted)	// winner
 						{
-							System.out.println(AGENTTYPE + " " + getAID().getName() + " got buyer for " +
-												auctionItem.name + "; " + proposalMsg.getSender().getName() +
+							System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got buyer for " +
+												auctionItem.name + "; " + proposalMsg.getSender().getLocalName() +
 												" bids " + askingPrice);
 							isAccepted = true;
 							acceptProposalMsg.addReceiver(proposalMsg.getSender());
@@ -122,32 +125,41 @@ public class ArtistManagerAgent extends Agent {
 						}
 						break;
 					case ACLMessage.NOT_UNDERSTOOD:
-						System.out.println(AGENTTYPE + " " + getAID().getName() + " got NOT_UNDERSTOOD from " +
-											proposalMsg.getSender().getName());
+						System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got NOT_UNDERSTOOD from " +
+											proposalMsg.getSender().getLocalName());
 						// TODO: remove bidder from list
 						break;
 					}
-					
 					if (receivedProposals >= bidders.length)
 					{
+						System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got proposals from every bidder");
 						rejectProposalMsg.setConversationId(""+auctionItem.ID);
-						send(rejectProposalMsg);
+						
+						if (rejectProposalMsg.getAllReceiver().hasNext())	// there are bidders who need rejection
+						{
+							System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now send rejected msg");
+							send(rejectProposalMsg);
+						}
 						
 						if (isAccepted)
 						{
 							acceptProposalMsg.setConversationId(""+auctionItem.ID);
+							System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now send accepted msg");
 							send(acceptProposalMsg);
 							step++;							// Move to next step
 						}
 						else {
 							askingPrice -= 10;
+							System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got no good bids, " + 
+												"lowered price by 10. New price: " + askingPrice);
+							step--;
 							// TODO: add/check lowest bound
 						}
 					}
 				}
 				break;
 			case 3:		// End of auction
-				System.out.println(AGENTTYPE + " " + getAID().getName() + " will now close auction");
+				System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now close auction");
 				ACLMessage eoaMsg = new ACLMessage(ACLMessage.CANCEL);
 				eoaMsg.setConversationId(""+auctionItem.ID);
 				
