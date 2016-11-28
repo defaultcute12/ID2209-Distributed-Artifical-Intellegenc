@@ -44,7 +44,7 @@ public class GameState implements Serializable
 		return false;
 	}
 	
-	public void putQueen(int queenID, int row, int col)
+	public void putQueen(int row, int col)
 	{
 		// Get diagonal position
 		int forwardDiagonalPos = forwardPos(row, col);
@@ -56,7 +56,7 @@ public class GameState implements Serializable
 		isBackwardDiagonalThreatened[backwardDiagonalPos] = true;
 		
 		// Store queen position
-		queenPositions[queenID] = new Position(row, col);
+		queenPositions[row] = new Position(row, col);
 	}
 	
 	public Position getQueenPosition(int queenID)
@@ -65,12 +65,12 @@ public class GameState implements Serializable
 		return queenPositions[queenID];
 	}
 	
-	public void removeQueen(int queenID)
+	public Position removeQueen(int queenID)
 	{
-		if (queenPositions.length <= queenID) return;
+		if (queenPositions.length <= queenID) return null;
 		
 		Position pos = queenPositions[queenID];
-		if (pos == null) return;
+		if (pos == null) return null;
 		
 		// Get diagonal position
 		int forwardDiagonalPos = forwardPos(pos.row, pos.col);
@@ -81,17 +81,7 @@ public class GameState implements Serializable
 		isBackwardDiagonalThreatened[backwardDiagonalPos] = false;
 		
 		queenPositions[queenID] = null;
-	}
-	
-	public class Position
-	{
-		public final int row;
-		public final int col;
 		
-		public Position(int row, int col)
-		{
-			this.row = row;
-			this.col = col;
-		}
+		return pos;
 	}
 }
