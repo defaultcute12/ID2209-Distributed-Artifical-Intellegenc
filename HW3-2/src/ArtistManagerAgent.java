@@ -7,6 +7,9 @@ import jade.core.behaviours.SequentialBehaviour;
 public class ArtistManagerAgent extends Agent
 {
 	private Object[] args;
+	private Location auctionLocation;
+	private int ID = 0;
+	private boolean isClone = false;
 	
 	@Override
 	protected void setup()
@@ -15,24 +18,24 @@ public class ArtistManagerAgent extends Agent
 
 		System.out.println(getAID().getLocalName() + " is alive at " + here().getName());
 		
-		cloneHandling();
+		cloning();
 	}
 	
-	private void cloneHandling()
+	private void cloning()
 	{		
 		SequentialBehaviour sb = new SequentialBehaviour();
 		
 		for (int i = 0; i < 2; i++)
 		{
-			final int index = i;
+			final int index = i+1;
 			
 			sb.addSubBehaviour(new OneShotBehaviour()
 			{
 				@Override
 				public void action()
 				{
-					if (getAID().getLocalName().equals("Auctioneer"))
-						doClone(here(), (getAID().getLocalName() + "-" + index));
+					// Make sure it is only performed by the initial auctioneer
+					if (!isClone) doClone(here(), (getAID().getLocalName() + "-" + index));
 				}
 			});
 		}
@@ -40,19 +43,16 @@ public class ArtistManagerAgent extends Agent
 	}
 	
 	// only performed by copies
-	private void moveHandling()
-	{
-		final int ID = Character.getNumericValue(getAID().getLocalName().charAt(getAID().getLocalName().length()-1));
-		System.out.println(getAID().getLocalName() + " has ID " + ID);
-		
+	private void moveToContainer()
+	{		
 		addBehaviour(new OneShotBehaviour()
 		{
 			@Override
 			public void action()
 			{
-				Location destination = (Location) args[ID+2];
-				System.out.println(getAID().getLocalName() + " is a copy, will now move to " + destination.getName());
-				doMove(destination);
+				auctionLocation = (Location) args[ID+1];
+				System.out.println(getAID().getLocalName() + " will now move to " + auctionLocation.getName());
+				doMove(auctionLocation);
 			}
 		});
 	}
@@ -60,16 +60,18 @@ public class ArtistManagerAgent extends Agent
 	@Override
 	protected void beforeClone()
 	{
-		System.out.println(getAID().getLocalName() + " cloning locally at " + here().getName());
+		System.out.println(getAID().getLocalName() + " cloning at " + here().getName());
 	}
 	
 	@Override
 	protected void afterClone()
 	{
 		// Only performed by copies
-		System.out.println(getAID().getLocalName() + " is now inside afterClone()");
+		System.out.println("Clone " + getAID().getLocalName() + " has been created");
+		ID = Character.getNumericValue(getAID().getLocalName().charAt(getAID().getLocalName().length()-1));
+		isClone = true;
 		
-		moveHandling();
+		moveToContainer();
 	}
 	
 	
