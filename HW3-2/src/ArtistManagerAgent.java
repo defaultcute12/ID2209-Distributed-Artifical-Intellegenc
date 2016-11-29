@@ -30,6 +30,7 @@ public class ArtistManagerAgent extends Agent
 
 	private Object[] args;
 	private Location auctionLocation;
+	private Location homeLocation;
 	private int ID = 0;
 	private boolean isClone = false;
 	
@@ -68,6 +69,9 @@ public class ArtistManagerAgent extends Agent
 				}
 			});
 		}
+		
+		if (!isClone) sb.addSubBehaviour(new mainAuctioneerBehaviour());
+		
 		addBehaviour(sb);
 	}
 	
@@ -103,10 +107,53 @@ public class ArtistManagerAgent extends Agent
 		ID = Character.getNumericValue(getAID().getLocalName().charAt(getAID().getLocalName().length()-1));
 		isClone = true;
 		
+		homeLocation = here();		// remember so we know where to return
 		moveToContainer();
 	}
 	
+	// *************************
 	
+	private class mainAuctioneerBehaviour extends OneShotBehaviour
+	{
+		@Override
+		public void action()
+		{
+			int receivedProposals = 0;
+			AID bestAuctioneer = null;
+			int maxBid = 0;
+			
+			if (isClone) return;
+			
+			System.out.println(getAID().getLocalName() + " waiting for auctioneer clones to return");
+			while (true)				// wait for auctioneers to return back from their containers
+			{
+				ACLMessage auctionFinishedMsg = myAgent.blockingReceive();
+				if (auctionFinishedMsg != null)
+				{
+					receivedProposals++;
+					int bid = Integer.parseInt(auctionFinishedMsg.getContent());
+					
+					if (bid > maxBid)
+					{
+						bestAuctioneer = auctionFinishedMsg.getSender();
+						maxBid = bid;
+					}
+				}
+				if (receivedProposals >= 2) break;
+			}
+			if (bestAuctioneer == null)
+			{
+				System.err.println("Main Auctioneer failed to find a best auctioneer?");
+				myAgent.doDelete();
+			}
+			
+			System.out.println(getAID().getLocalName() + " has now got all auctioneer clones checked in");
+
+			ACLMessage winnerMsg = new ACLMessage(ACLMessage.CONFIRM);
+			winnerMsg.addReceiver(bestAuctioneer);
+			send(winnerMsg);
+		}
+	}
 	
 	
 	// *************************
@@ -121,6 +168,8 @@ public class ArtistManagerAgent extends Agent
 		boolean isAccepted = false;
 		int receivedProposals;
 		MessageTemplate mt;
+		
+		AID mainAuctioneerAID = new AID("Auctioneer", AID.ISLOCALNAME);
 
 		@Override
 		public void action()
@@ -128,7 +177,6 @@ public class ArtistManagerAgent extends Agent
 			switch (step)
 			{
 			case 0:		// fetch bidders from AMS & inform of auction start
-				// *****
 				ACLMessage query = prepareRequestToAMS(here());
 				send(query);
 				
@@ -194,6 +242,7 @@ public class ArtistManagerAgent extends Agent
 												" bids " + askingPrice);
 							isAccepted = true;
 							acceptProposalMsg.addReceiver(proposalMsg.getSender());
+							acceptProposalMsg.setConversationId(""+auctionItem.ID);
 						}
 						else {
 							rejectProposalMsg.addReceiver(proposalMsg.getSender());
@@ -212,17 +261,12 @@ public class ArtistManagerAgent extends Agent
 						
 						if (rejectProposalMsg.getAllReceiver().hasNext())	// there are bidders who need rejection
 						{
-							if (isAccepted) System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now send rejected msg");
+							if (isAccepted) System.out.println(AGENTTYPE + " " + getAID().getLocalName() +
+																" will now send rejected msg");
 							send(rejectProposalMsg);
 						}
 						
-						if (isAccepted)
-						{
-							acceptProposalMsg.setConversationId(""+auctionItem.ID);
-							System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now send accepted msg");
-							send(acceptProposalMsg);
-							step++;							// Move to next step
-						}
+						if (isAccepted) step++;		// Move to next step
 						else {
 							askingPrice -= 10;
 							
@@ -241,15 +285,43 @@ public class ArtistManagerAgent extends Agent
 					}
 				}
 				break;
-			case 3:		// End of auction
-				System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now close auction");
-				ACLMessage eoaMsg = new ACLMessage(ACLMessage.CANCEL);
-				eoaMsg.setConversationId(""+auctionItem.ID);
+			case 3:		// Checkin at home container
+				System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now check in at home container");
+				doMove(homeLocation);
 				
-				for (int i = 0; i < bidders.length; ++i) eoaMsg.addReceiver(bidders[i]);
-				send(eoaMsg);
-				step = END;
+				
+				ACLMessage checkinMsg = new ACLMessage(ACLMessage.INFORM);
+				checkinMsg.addReceiver(mainAuctioneerAID);
+				checkinMsg.setContent(""+askingPrice);
+				send(checkinMsg);
+				step++;
 				break;
+			case 4:		// wait for main Auctioneer
+				ACLMessage winningAuctionMsg = blockingReceive(MessageTemplate.MatchSender(mainAuctioneerAID));
+				
+				System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got some message???");
+				
+				if (winningAuctionMsg != null)
+				{
+					System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got highest bid; will inform winner");
+					doMove(auctionLocation);
+					
+					System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now send accepted msg");
+					send(acceptProposalMsg);
+					
+					System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now close auction");
+					ACLMessage eoaMsg = new ACLMessage(ACLMessage.CANCEL);
+					eoaMsg.setConversationId(""+auctionItem.ID);
+					
+					for (int i = 0; i < bidders.length; ++i) eoaMsg.addReceiver(bidders[i]);
+					send(eoaMsg);
+					step = END;
+					break;
+				}
+				else {
+					System.err.println(AGENTTYPE + " " + getAID().getLocalName() + " got null msg");
+					myAgent.doDelete();
+				}
 			}
 		}
 
