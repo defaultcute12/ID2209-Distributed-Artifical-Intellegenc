@@ -298,9 +298,7 @@ public class ArtistManagerAgent extends Agent
 				break;
 			case 4:		// wait for main Auctioneer
 				ACLMessage winningAuctionMsg = blockingReceive(MessageTemplate.MatchSender(mainAuctioneerAID));
-				
-				System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got some message???");
-				
+								
 				if (winningAuctionMsg != null)
 				{
 					System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got highest bid; will inform winner");

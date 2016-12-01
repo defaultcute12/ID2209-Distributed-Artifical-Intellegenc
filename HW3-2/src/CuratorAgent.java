@@ -1,3 +1,5 @@
+import java.util.Random;
+
 import jade.core.Agent;
 import jade.core.behaviours.Behaviour;
 import jade.core.behaviours.OneShotBehaviour;
@@ -60,6 +62,11 @@ public class CuratorAgent extends Agent
 		System.out.println("Clone " + getAID().getLocalName() + " has been created");
 		ID = Character.getNumericValue(getAID().getLocalName().charAt(getAID().getLocalName().length()-1));
 		isClone = true;
+		
+		/*
+		Random rnd = new Random();
+		maxPrice = rnd.nextInt(100);
+		*/
 	}
 	
 	
