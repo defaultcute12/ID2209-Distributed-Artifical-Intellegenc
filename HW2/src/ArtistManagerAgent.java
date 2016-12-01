@@ -16,10 +16,23 @@ public class ArtistManagerAgent extends Agent {
 	
 	private AuctionItem auctionItem;
 	private int askingPrice;
+	private int lowestPrice;
 	
+	public ArtistManagerAgent()
+	{
+		System.out.println("EMPTY CONSTRUCTOR");
+	}
+	public ArtistManagerAgent(String k)
+	{
+		System.out.println("STRING CONSTRUCTOR");
+	}
 	@Override
 	protected void setup()
 	{
+		Object[] args = getArguments();
+		askingPrice = Integer.parseInt(args[0].toString());
+		lowestPrice = Integer.parseInt(args[1].toString());
+        
 		try {
 			Thread.sleep(5000);
 		} catch (InterruptedException e) { }
@@ -28,7 +41,7 @@ public class ArtistManagerAgent extends Agent {
         askingPrice = 100;
         
         System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " created; will auction \"" +
-        					auctionItem.name + "\" starting at " + askingPrice);
+        					auctionItem.name + "\" starting at " + askingPrice + " (lowest " + lowestPrice + ")");
         
         addBehaviour(new stepBehaviour());
 	}
@@ -106,8 +119,6 @@ public class ArtistManagerAgent extends Agent {
 				ACLMessage proposalMsg = myAgent.blockingReceive(mt);
 				if (proposalMsg != null)
 				{
-					System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got msg from " +
-												proposalMsg.getSender().getLocalName() + ": " + proposalMsg.getContent());
 					receivedProposals++;
 					switch (proposalMsg.getPerformative())
 					{
@@ -132,12 +143,12 @@ public class ArtistManagerAgent extends Agent {
 					}
 					if (receivedProposals >= bidders.length)
 					{
-						System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got proposals from every bidder");
+						System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " all bidders checked in");
 						rejectProposalMsg.setConversationId(""+auctionItem.ID);
 						
 						if (rejectProposalMsg.getAllReceiver().hasNext())	// there are bidders who need rejection
 						{
-							System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now send rejected msg");
+							if (isAccepted) System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now send rejected msg");
 							send(rejectProposalMsg);
 						}
 						
@@ -150,10 +161,18 @@ public class ArtistManagerAgent extends Agent {
 						}
 						else {
 							askingPrice -= 10;
-							System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got no good bids, " + 
-												"lowered price by 10. New price: " + askingPrice);
-							step--;
-							// TODO: add/check lowest bound
+							
+							if (askingPrice < lowestPrice)
+							{
+								System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got no good bids, " +
+										"price is now lower than minimum accepted");
+								step++;
+							}
+							else {
+								System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got no good bids, " + 
+										"lowered price by 10. New price: " + askingPrice);
+								step--;
+							}
 						}
 					}
 				}

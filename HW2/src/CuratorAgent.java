@@ -33,7 +33,10 @@ public class CuratorAgent extends Agent {
 	@Override
 	protected void setup()
 	{
-        System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " is created");
+		Object[] args = getArguments();
+		maxPrice = Integer.parseInt(args[0].toString());
+		
+        System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " is created with max price at " + maxPrice);
         addBehaviours();
 	}
 	
@@ -74,7 +77,7 @@ public class CuratorAgent extends Agent {
 		proposal.setPerformative(ACLMessage.PROPOSE);
 		int biddingPrice = Integer.parseInt(cfp.getContent());
 		
-		if (item.type == AuctionItem.PAINTING && biddingPrice <= maxPrice) proposal.setContent(""+biddingPrice);
+		if (biddingPrice <= maxPrice) proposal.setContent(""+biddingPrice);
 		else proposal.setContent(""+0);
 		
 		return proposal;
@@ -92,10 +95,10 @@ public class CuratorAgent extends Agent {
 			{
 			case 0:		// inform of new auction
 				ACLMessage newAuctionMsg = myAgent.blockingReceive(MessageTemplate.MatchPerformative(ACLMessage.INFORM));
-				System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got notification of new auction");
 				
 				if (newAuctionMsg != null)
 				{
+					System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got notification of new auction");
 					try {
 						item = (AuctionItem)newAuctionMsg.getContentObject();
 					}
@@ -119,7 +122,9 @@ public class CuratorAgent extends Agent {
 					case ACLMessage.CFP:
 						System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got cfp");
 						ACLMessage proposalMsg = getProposal(cfpMsg);
-						System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will now send proposal");
+						if (Integer.parseInt(proposalMsg.getContent()) > 0)
+							System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " will propose " + 
+											Integer.parseInt(proposalMsg.getContent()));
 						send(proposalMsg);
 						step++;
 						break;
@@ -135,19 +140,17 @@ public class CuratorAgent extends Agent {
 				}
 				break;
 			case 2:		// status of sent proposal
-				System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " waiting for proposal reply");
+				//System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " waiting for proposal reply");
 				ACLMessage statusMsg = myAgent.blockingReceive();
 				if (statusMsg != null)
 				{
-					System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got proposal reply");
-
 					if (statusMsg.getPerformative() == ACLMessage.ACCEPT_PROPOSAL)
 					{
 						System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " won auction of " + item.name + "!");
 					}
 					else if (statusMsg.getPerformative() == ACLMessage.REJECT_PROPOSAL)
 					{
-						//System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " lost auction item " + item.name);
+						//System.out.println(AGENTTYPE + " " + getAID().getLocalName() + " got proposal reply");
 					}
 				}
 				step--;
